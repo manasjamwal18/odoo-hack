@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CalendarRange, Clock, Plus, X, AlertTriangle, Check, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarRange, AlertTriangle, Check, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { cn, formatDateTime } from '../lib/utils';
+import { cn } from '../lib/utils';
+import { useAuthStore } from '../store/useAuthStore';
 
 // ── Time slot grid (Screen 6 — visual calendar) ───────────────────────────────
 
@@ -163,6 +164,22 @@ export default function Booking() {
   const [bookings, setBookings] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
+  const [cancellingId, setCancellingId] = useState(null);
+  const { user } = useAuthStore();
+
+  const handleCancel = async (id) => {
+    if (!window.confirm('Cancel this booking?')) return;
+    setCancellingId(id);
+    try {
+      await api.put(`/bookings/${id}/cancel`);
+      toast.success('Booking cancelled');
+      fetchBookings();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to cancel booking');
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     api.get('/assets', { params: { bookable: 'true' } })
@@ -256,7 +273,7 @@ export default function Booking() {
               <input
                 type="date"
                 className="af-input mt-2 text-xs"
-                value={selectedDate.toISOString().split('T')[0]}
+                value={`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`}
                 onChange={e => setSelectedDate(new Date(e.target.value + 'T00:00:00'))}
               />
             </div>
@@ -265,21 +282,34 @@ export default function Booking() {
           {/* My upcoming bookings */}
           <div className="section-card">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">My Bookings</h4>
-            {bookings.filter(b => b.status !== 'CANCELLED').slice(0, 5).map(b => (
-              <div key={b.id} className="py-2.5 border-b border-border/50 last:border-0 text-xs">
-                <p className="font-medium text-foreground">{b.asset?.name}</p>
-                <p className="text-muted-foreground mt-0.5">
-                  {new Date(b.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                  {' – '}
-                  {new Date(b.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                </p>
-                <span className={cn('badge mt-1',
-                  b.status === 'UPCOMING' ? 'badge-allocated' :
-                  b.status === 'ONGOING' ? 'badge-available' : 'badge-retired'
-                )}>{b.status}</span>
+            {bookings.filter(b => b.userId === user?.id && b.status !== 'CANCELLED').slice(0, 5).map(b => (
+              <div key={b.id} className="py-2.5 border-b border-border/50 last:border-0 text-xs flex justify-between items-start gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground truncate">{b.asset?.name}</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    {new Date(b.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    {' – '}
+                    {new Date(b.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  <span className={cn('badge mt-1 inline-block',
+                    b.status === 'UPCOMING' ? 'badge-allocated' :
+                    b.status === 'ONGOING' ? 'badge-available' : 'badge-retired'
+                  )}>{b.status}</span>
+                </div>
+                {b.status === 'UPCOMING' && (
+                  <button
+                    onClick={() => handleCancel(b.id)}
+                    disabled={cancellingId === b.id}
+                    className="btn-danger btn-sm text-[10px] py-1 px-2 cursor-pointer shrink-0 mt-0.5"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
             ))}
-            {bookings.length === 0 && <p className="text-xs text-muted-foreground">No bookings yet</p>}
+            {bookings.filter(b => b.userId === user?.id && b.status !== 'CANCELLED').length === 0 && (
+              <p className="text-xs text-muted-foreground">No bookings yet</p>
+            )}
           </div>
         </div>
 

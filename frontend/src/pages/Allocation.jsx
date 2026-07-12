@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Search, ArrowLeftRight, RotateCcw, Clock, AlertTriangle, Loader2, X, Check } from 'lucide-react';
+import { ArrowLeftRight, RotateCcw, AlertTriangle, Loader2, X, Check } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { cn, formatDate, isOverdue } from '../lib/utils';
@@ -179,12 +179,17 @@ function AllocateForm({ assets, employees, onDone }) {
 
 function AllocationHistory({ allocations, onRefresh, canManage }) {
   const [returning, setReturning] = useState(null);
+  const [returnNotesAllocId, setReturnNotesAllocId] = useState(null);
+  const [conditionNotes, setConditionNotes] = useState('');
 
-  const handleReturn = async (id) => {
-    setReturning(id);
+  const handleReturnSubmit = async (e) => {
+    e.preventDefault();
+    setReturning(returnNotesAllocId);
     try {
-      await api.put(`/allocations/${id}/return`, { conditionNotes: '' });
-      toast.success('Asset returned');
+      await api.put(`/allocations/${returnNotesAllocId}/return`, { conditionNotes });
+      toast.success('Asset returned successfully');
+      setReturnNotesAllocId(null);
+      setConditionNotes('');
       onRefresh();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Return failed');
@@ -192,68 +197,106 @@ function AllocationHistory({ allocations, onRefresh, canManage }) {
   };
 
   return (
-    <div className="af-table-wrapper">
-      <table className="af-table">
-        <thead>
-          <tr>
-            <th>Asset</th>
-            <th>Allocated To</th>
-            <th>Date</th>
-            <th>Expected Return</th>
-            <th>Status</th>
-            {canManage && <th>Actions</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {allocations.length === 0 ? (
-            <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">No allocations found</td></tr>
-          ) : allocations.map(a => (
-            <tr key={a.id}>
-              <td>
-                <div>
-                  <span className="font-mono text-xs text-primary font-semibold">{a.asset?.tag}</span>
-                  <p className="text-xs text-muted-foreground mt-0.5">{a.asset?.name}</p>
-                </div>
-              </td>
-              <td className="font-medium">{a.user?.name}</td>
-              <td className="text-muted-foreground text-xs">{formatDate(a.createdAt)}</td>
-              <td>
-                {a.expectedReturnDate ? (
-                  <span className={cn(
-                    'text-xs font-medium',
-                    isOverdue(a.expectedReturnDate) && a.status === 'ACTIVE'
-                      ? 'text-red-400 font-semibold'
-                      : 'text-muted-foreground'
-                  )}>
-                    {isOverdue(a.expectedReturnDate) && a.status === 'ACTIVE' && '⚠ '}
-                    {formatDate(a.expectedReturnDate)}
-                  </span>
-                ) : <span className="text-muted-foreground">—</span>}
-              </td>
-              <td>
-                <span className={cn('badge', a.status === 'ACTIVE' ? 'badge-allocated' : a.status === 'RETURNED' ? 'badge-available' : 'badge-retired')}>
-                  {a.status}
-                </span>
-              </td>
-              {canManage && (
-                <td>
-                  {a.status === 'ACTIVE' && (
-                    <button
-                      onClick={() => handleReturn(a.id)}
-                      disabled={returning === a.id}
-                      className="btn-secondary btn-sm flex items-center gap-1.5"
-                    >
-                      {returning === a.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                      Return
-                    </button>
-                  )}
-                </td>
-              )}
+    <>
+      <div className="af-table-wrapper">
+        <table className="af-table">
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Allocated To</th>
+              <th>Date</th>
+              <th>Expected Return</th>
+              <th>Status</th>
+              {canManage && <th>Actions</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {allocations.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">No allocations found</td></tr>
+            ) : allocations.map(a => (
+              <tr key={a.id}>
+                <td>
+                  <div>
+                    <span className="font-mono text-xs text-primary font-semibold">{a.asset?.tag}</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">{a.asset?.name}</p>
+                  </div>
+                </td>
+                <td className="font-medium">{a.user?.name}</td>
+                <td className="text-muted-foreground text-xs">{formatDate(a.createdAt)}</td>
+                <td>
+                  {a.expectedReturnDate ? (
+                    <span className={cn(
+                      'text-xs font-medium',
+                      isOverdue(a.expectedReturnDate) && a.status === 'ACTIVE'
+                        ? 'text-red-400 font-semibold'
+                        : 'text-muted-foreground'
+                    )}>
+                      {isOverdue(a.expectedReturnDate) && a.status === 'ACTIVE' && '⚠ '}
+                      {formatDate(a.expectedReturnDate)}
+                    </span>
+                  ) : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td>
+                  <span className={cn('badge', a.status === 'ACTIVE' ? 'badge-allocated' : a.status === 'RETURNED' ? 'badge-available' : 'badge-retired')}>
+                    {a.status}
+                  </span>
+                </td>
+                {canManage && (
+                  <td>
+                    {a.status === 'ACTIVE' && (
+                      <button
+                        onClick={() => { setReturnNotesAllocId(a.id); setConditionNotes(''); }}
+                        disabled={returning === a.id}
+                        className="btn-secondary btn-sm flex items-center gap-1.5"
+                      >
+                        <RotateCcw size={11} />
+                        Return
+                      </button>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {returnNotesAllocId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setReturnNotesAllocId(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative bg-card border border-border rounded-2xl w-full max-w-md shadow-card-hover animate-slide-up"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h3 className="font-semibold text-foreground">Return Asset</h3>
+              <button onClick={() => setReturnNotesAllocId(null)} className="text-muted-foreground hover:text-foreground cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleReturnSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="af-label">Condition & Return Notes</label>
+                <textarea
+                  className="af-input min-h-24 resize-none"
+                  placeholder="e.g. Returned in good condition, minor scratches on the back..."
+                  value={conditionNotes}
+                  onChange={e => setConditionNotes(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="flex gap-3 pt-2 border-t border-border">
+                <button type="button" onClick={() => setReturnNotesAllocId(null)} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" disabled={returning === returnNotesAllocId} className="btn-primary flex-1">
+                  {returning === returnNotesAllocId ? <><Loader2 size={14} className="animate-spin" /> Returning…</> : 'Confirm Return'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

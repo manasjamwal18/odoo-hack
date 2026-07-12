@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Plus, Filter, X, Loader2, Package, ChevronRight } from 'lucide-react';
+import { Search, Plus, X, Loader2, Package, ChevronRight } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { cn, formatDate, getStatusBadgeClass, formatStatus } from '../lib/utils';
@@ -11,11 +11,26 @@ function RegisterModal({ categories, departments, onClose, onSaved }) {
   const [form, setForm] = useState({
     name: '', categoryId: '', serialNumber: '', acquisitionDate: '',
     acquisitionCost: '', condition: 'Good', location: '', departmentId: '', isBookable: false,
+    photoUrl: '',
   });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
 
   const change = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image size must be less than 2MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setForm(f => ({ ...f, photoUrl: reader.result }));
+    };
+    reader.readAsDataURL(file);
+  };
   const conditions = ['Excellent', 'Good', 'Fair', 'Poor', 'Critical'];
 
   const validate = () => {
@@ -100,6 +115,27 @@ function RegisterModal({ categories, departments, onClose, onSaved }) {
               <label className="af-label">Location</label>
               <input className="af-input" value={form.location} onChange={change('location')} placeholder="e.g. Bangalore, Floor 2" />
             </div>
+            <div className="col-span-2">
+              <label className="af-label">Asset Photo</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoChange}
+                className="af-input text-xs pt-1.5"
+              />
+              {form.photoUrl && (
+                <div className="mt-2 relative inline-block">
+                  <img src={form.photoUrl} alt="Preview" className="h-20 w-20 object-cover rounded-lg border border-border" />
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, photoUrl: '' }))}
+                    className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/95"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="col-span-2 flex items-center gap-3">
               <input type="checkbox" id="bookable" checked={form.isBookable}
                 onChange={e => setForm(f => ({ ...f, isBookable: e.target.checked }))}
@@ -140,6 +176,11 @@ function AssetPanel({ asset, onClose }) {
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer"><X size={18} /></button>
         </div>
         <div className="p-6 space-y-4 text-sm">
+          {asset.photoUrl && (
+            <div className="w-full h-48 rounded-xl overflow-hidden border border-border mb-4">
+              <img src={asset.photoUrl} alt={asset.name} className="w-full h-full object-cover" />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: 'Status', value: <span className={cn('badge', getStatusBadgeClass(asset.status))}>{formatStatus(asset.status)}</span> },
@@ -190,6 +231,19 @@ function AssetPanel({ asset, onClose }) {
               </div>
             </div>
           )}
+
+          {/* QR Code */}
+          <div className="border-t border-border/50 pt-4 flex flex-col items-center justify-center gap-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Asset QR Code</p>
+            <div className="bg-white p-2 rounded-lg border border-border">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${asset.tag}`} 
+                alt="QR Code" 
+                className="w-24 h-24" 
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground font-mono">{asset.tag}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -311,6 +365,7 @@ export default function Assets() {
               <th>Status</th>
               <th>Location</th>
               <th>Department</th>
+              <th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -357,6 +412,14 @@ export default function Assets() {
                 </td>
                 <td className="text-muted-foreground text-xs">{asset.location || '—'}</td>
                 <td className="text-muted-foreground text-xs">{asset.department?.name || '—'}</td>
+                <td className="text-right" onClick={e => e.stopPropagation()}>
+                  <button 
+                    onClick={() => openAsset(asset)}
+                    className="btn-ghost btn-sm text-xs py-1 px-2.5 h-auto inline-flex items-center gap-1 hover:bg-secondary cursor-pointer"
+                  >
+                    View <ChevronRight size={12} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

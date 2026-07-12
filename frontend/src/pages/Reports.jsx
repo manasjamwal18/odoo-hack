@@ -13,17 +13,17 @@ function BarChart({ data, label, color = 'bg-primary' }) {
       <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">{label}</h4>
       <div className="flex items-end gap-2 h-40">
         {data.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1.5 group">
+          <div key={i} className="flex-1 h-full flex flex-col justify-end items-center gap-1 group">
             <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity font-bold">
               {d.value}
             </span>
             <div
               className={cn('w-full rounded-t-md transition-all duration-500', color)}
-              style={{ height: `${Math.max((d.value / max) * 100, 4)}%` }}
+              style={{ height: `${Math.max((d.value / max) * 100, 4)}px` }}
               role="img"
               aria-label={`${d.name}: ${d.value}`}
             />
-            <span className="text-[10px] text-muted-foreground text-center leading-tight">{d.name}</span>
+            <span className="text-[10px] text-muted-foreground text-center leading-tight truncate w-full mt-1" title={d.name}>{d.name}</span>
           </div>
         ))}
         {data.length === 0 && (
@@ -63,6 +63,17 @@ function AssetList({ title, items, emptyMsg, colorClass }) {
   );
 }
 
+// ── Helper: format YYYY-MM to Month 'YY ────────────────────────────────────────
+
+function formatMonthLabel(monthStr) {
+  if (!monthStr || !monthStr.includes('-')) return monthStr;
+  const [year, monthNum] = monthStr.split('-');
+  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthName = MONTH_NAMES[parseInt(monthNum) - 1] || '';
+  const shortYear = year.slice(-2);
+  return `${monthName} '${shortYear}`;
+}
+
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 
 export default function Reports() {
@@ -88,7 +99,7 @@ export default function Reports() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `assetflow-report-${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `assetflow-report-${new Date().toISOString().split('T')[0]}.html`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
@@ -129,14 +140,14 @@ export default function Reports() {
         <div className="section-card">
           <BarChart
             label="Utilization by Department"
-            data={utilizationData.map(d => ({ name: d.department?.slice(0, 8), value: d.allocated }))}
+            data={utilizationData.map(d => ({ name: d.department, value: d.allocated }))}
             color="bg-primary"
           />
         </div>
         <div className="section-card">
           <BarChart
             label="Maintenance Frequency (last 6 months)"
-            data={maintenanceData.map(d => ({ name: d.month?.slice(0, 3), value: d.count }))}
+            data={maintenanceData.map(d => ({ name: formatMonthLabel(d.month), value: d.count }))}
             color="bg-blue-500"
           />
         </div>

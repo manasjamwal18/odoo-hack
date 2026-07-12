@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, AlertTriangle, Wrench, Loader2, X, Check, ChevronRight } from 'lucide-react';
+import { Plus, Wrench, Loader2, X, Check, ChevronRight } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { cn, formatDate } from '../lib/utils';
@@ -19,7 +19,8 @@ const PRIORITY_COLORS = {
   LOW: 'badge-low', MEDIUM: 'badge-medium', HIGH: 'badge-high', CRITICAL: 'badge-critical',
 };
 
-function KanbanCard({ request, canManage, onAction }) {
+function KanbanCard({ request, canManage, onAction, processing }) {
+  const isProcessing = processing === request.id;
   return (
     <div className="kanban-card animate-fade-in">
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -38,27 +39,27 @@ function KanbanCard({ request, canManage, onAction }) {
         <div className="mt-3 flex flex-wrap gap-1.5">
           {request.status === 'PENDING' && (
             <>
-              <button onClick={() => onAction(request.id, 'approve')} className="btn-primary btn-sm text-[11px]">
-                <Check size={10} /> Approve
+              <button onClick={() => onAction(request.id, 'approve')} disabled={isProcessing} className="btn-primary btn-sm text-[11px]">
+                {isProcessing ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} Approve
               </button>
-              <button onClick={() => onAction(request.id, 'reject')} className="btn-danger btn-sm text-[11px]">
+              <button onClick={() => onAction(request.id, 'reject')} disabled={isProcessing} className="btn-danger btn-sm text-[11px]">
                 <X size={10} /> Reject
               </button>
             </>
           )}
           {request.status === 'APPROVED' && (
-            <button onClick={() => onAction(request.id, 'assign')} className="btn-secondary btn-sm text-[11px]">
-              <ChevronRight size={10} /> Assign Tech
+            <button onClick={() => onAction(request.id, 'assign')} disabled={isProcessing} className="btn-secondary btn-sm text-[11px]">
+              {isProcessing ? <Loader2 size={10} className="animate-spin" /> : <ChevronRight size={10} />} Assign Tech
             </button>
           )}
           {request.status === 'TECHNICIAN_ASSIGNED' && (
-            <button onClick={() => onAction(request.id, 'progress')} className="btn-secondary btn-sm text-[11px]">
-              <ChevronRight size={10} /> Start Work
+            <button onClick={() => onAction(request.id, 'progress')} disabled={isProcessing} className="btn-secondary btn-sm text-[11px]">
+              {isProcessing ? <Loader2 size={10} className="animate-spin" /> : <ChevronRight size={10} />} Start Work
             </button>
           )}
           {request.status === 'IN_PROGRESS' && (
-            <button onClick={() => onAction(request.id, 'resolve')} className="btn-primary btn-sm text-[11px]">
-              <Check size={10} /> Resolve
+            <button onClick={() => onAction(request.id, 'resolve')} disabled={isProcessing} className="btn-primary btn-sm text-[11px]">
+              {isProcessing ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} Resolve
             </button>
           )}
         </div>
@@ -67,7 +68,7 @@ function KanbanCard({ request, canManage, onAction }) {
   );
 }
 
-function KanbanColumn({ column, requests, canManage, onAction }) {
+function KanbanColumn({ column, requests, canManage, onAction, processing }) {
   return (
     <div className="flex flex-col min-w-48 flex-1">
       {/* Column header */}
@@ -85,7 +86,7 @@ function KanbanColumn({ column, requests, canManage, onAction }) {
           </div>
         ) : (
           requests.map(r => (
-            <KanbanCard key={r.id} request={r} canManage={canManage} onAction={onAction} />
+            <KanbanCard key={r.id} request={r} canManage={canManage} onAction={onAction} processing={processing} />
           ))
         )}
       </div>
@@ -256,6 +257,7 @@ export default function Maintenance() {
               requests={byStatus(col.key)}
               canManage={canManage}
               onAction={handleAction}
+              processing={processing}
             />
           ))}
         </div>

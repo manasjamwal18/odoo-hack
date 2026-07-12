@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { cn } from '../../lib/utils';
+import ProfileModal from './ProfileModal';
 import {
   LayoutDashboard, Building2, Package, ArrowLeftRight,
   CalendarRange, Wrench, ClipboardList, BarChart3, Bell,
@@ -29,6 +31,7 @@ const roleConfig = {
 export default function Sidebar() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const [showProfile, setShowProfile] = useState(false);
   const role = roleConfig[user?.role] || roleConfig.EMPLOYEE;
   const RoleIcon = role.icon;
 
@@ -39,14 +42,13 @@ export default function Sidebar() {
     <aside className="w-56 shrink-0 flex flex-col bg-card border-r border-border h-screen sticky top-0 overflow-hidden">
 
       {/* Logo */}
-      <div className="px-4 py-5 border-b border-border flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-glow-sm">
-          <span className="text-xs font-bold text-primary-foreground">AF</span>
-        </div>
-        <div>
-          <p className="text-sm font-bold text-foreground leading-none">AssetFlow</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Enterprise ERP</p>
-        </div>
+      <div className="px-4 py-3.5 border-b border-border flex items-center justify-center">
+        <img 
+          src="/logo.jpg" 
+          alt="AssetFlow" 
+          className="h-10 w-auto object-contain select-none pointer-events-none" 
+          style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(1.1)', mixBlendMode: 'screen' }}
+        />
       </div>
 
       {/* Nav */}
@@ -78,15 +80,22 @@ export default function Sidebar() {
           {role.label}
         </div>
         {/* User info */}
-        <div className="flex items-center gap-2.5 px-2">
-          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[11px] font-bold text-primary shrink-0">
-            {user?.name?.charAt(0).toUpperCase()}
+        <button
+          onClick={() => setShowProfile(true)}
+          className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-secondary/50 text-left transition-colors cursor-pointer"
+        >
+          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[11px] font-bold text-primary shrink-0 overflow-hidden">
+            {user?.photoUrl ? (
+              <img src={user.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              user?.name?.charAt(0).toUpperCase()
+            )}
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-foreground truncate">{user?.name}</p>
             <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
           </div>
-        </div>
+        </button>
         {/* Logout */}
         <button
           onClick={handleLogout}
@@ -98,6 +107,7 @@ export default function Sidebar() {
           Sign out
         </button>
       </div>
+      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
     </aside>
   );
 }

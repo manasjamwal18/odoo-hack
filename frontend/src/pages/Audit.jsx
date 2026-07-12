@@ -3,7 +3,6 @@ import { Plus, ClipboardCheck, Loader2, X, Check, AlertTriangle, ChevronDown } f
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { cn, formatDate } from '../lib/utils';
-import { useAuthStore } from '../store/useAuthStore';
 
 // ── Create Audit Modal ────────────────────────────────────────────────────────
 

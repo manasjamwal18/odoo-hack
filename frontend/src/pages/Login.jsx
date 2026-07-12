@@ -83,11 +83,14 @@ export default function Login() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-glow-green mb-4">
-            <span className="text-2xl font-bold text-primary-foreground">AF</span>
-          </div>
+          <img 
+            src="/logo.jpg" 
+            alt="AssetFlow" 
+            className="h-20 w-auto object-contain mb-4 select-none pointer-events-none" 
+            style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(1.1)', mixBlendMode: 'screen' }}
+          />
           <h1 className="text-xl font-bold text-foreground">
-            AssetFlow — {mode === 'login' ? 'login' : 'Create Account'}
+            {mode === 'login' ? 'Login' : 'Create Account'}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Enterprise Asset & Resource Management</p>
         </div>

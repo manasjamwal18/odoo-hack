@@ -88,6 +88,7 @@ model User {
   status       Status   @default(ACTIVE)
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id])
+  photoUrl     String?
 
   allocations         Allocation[]
   bookings            Booking[]

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package, CheckCircle2, Wrench, CalendarCheck, ArrowLeftRight, AlertTriangle,
-  Clock, Plus, BookOpen, AlertCircle, Loader2, TrendingUp
+  Clock, Plus, BookOpen, AlertCircle, TrendingUp
 } from 'lucide-react';
 import api from '../api/axios';
 import { formatDateTime, cn } from '../lib/utils';
