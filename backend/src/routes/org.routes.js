@@ -8,7 +8,10 @@ const prisma = new PrismaClient();
 router.get('/departments', auth, async (req, res) => {
   try {
     const depts = await prisma.department.findMany({
-      include: { employees: { select: { id: true, name: true, role: true } } },
+      include: {
+        employees: { select: { id: true, name: true, role: true } },
+        _count: { select: { assets: true, employees: true } },
+      },
       orderBy: { name: 'asc' },
     });
     res.json(depts);
@@ -43,7 +46,10 @@ router.delete('/departments/:id', auth, rbac(['ADMIN']), async (req, res) => {
 // GET /api/org/categories
 router.get('/categories', auth, async (req, res) => {
   try {
-    const cats = await prisma.assetCategory.findMany({ orderBy: { name: 'asc' } });
+    const cats = await prisma.assetCategory.findMany({
+      include: { _count: { select: { assets: true } } },
+      orderBy: { name: 'asc' },
+    });
     res.json(cats);
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
