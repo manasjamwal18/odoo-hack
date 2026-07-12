@@ -5,6 +5,11 @@ export const useUIStore = create((set) => ({
   sidebarCollapsed: false,
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
+  // Live notifications (SSE)
+  unreadCount: 0,
+  setUnreadCount: (n) => set({ unreadCount: n }),
+  incrementUnread: () => set((s) => ({ unreadCount: s.unreadCount + 1 })),
+
   // Active filters per page (keyed by page name)
   activeFilters: {},
   setFilter: (page, key, value) =>

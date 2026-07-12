@@ -114,6 +114,7 @@ model Department {
 
   employees User[]
   assets    Asset[]
+  allocations Allocation[] @relation("DeptAllocations")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -160,12 +161,16 @@ model Allocation {
   id                 String      @id @default(cuid())
   assetId            String
   asset              Asset       @relation(fields: [assetId], references: [id])
-  userId             String
-  user               User        @relation(fields: [userId], references: [id])
+  // Allocated to a user OR a department — exactly one is set
+  userId             String?
+  user               User?       @relation(fields: [userId], references: [id])
+  departmentId       String?
+  department         Department? @relation("DeptAllocations", fields: [departmentId], references: [id])
   status             AllocStatus @default(ACTIVE)
   expectedReturnDate DateTime?
   returnedAt         DateTime?
   conditionNotes     String?
+  overdueNotifiedAt  DateTime?
   transferRequests   TransferRequest[]
 
   createdAt DateTime @default(now())
@@ -195,6 +200,7 @@ model Booking {
   startTime DateTime
   endTime   DateTime
   status    BookingStatus @default(UPCOMING)
+  reminderSent Boolean    @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

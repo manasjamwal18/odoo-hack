@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useUIStore } from '../../store/useUIStore';
 import { cn } from '../../lib/utils';
 import ProfileModal from './ProfileModal';
 import {
@@ -30,6 +31,7 @@ const roleConfig = {
 
 export default function Sidebar() {
   const { user, logout } = useAuthStore();
+  const unreadCount = useUIStore((s) => s.unreadCount);
   const navigate = useNavigate();
   const [showProfile, setShowProfile] = useState(false);
   const role = roleConfig[user?.role] || roleConfig.EMPLOYEE;
@@ -68,6 +70,11 @@ export default function Sidebar() {
           >
             <Icon size={15} strokeWidth={1.75} />
             <span className="truncate">{label}</span>
+            {to === '/notifications' && unreadCount > 0 && (
+              <span className="ml-auto shrink-0 min-w-4.5 h-4.5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-fade-in">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

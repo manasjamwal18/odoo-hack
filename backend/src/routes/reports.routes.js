@@ -110,7 +110,7 @@ router.get('/summary', auth, async (req, res) => {
       }),
       prisma.maintenanceRequest.count({ where: { createdAt: { gte: startOfMonth } } }),
       prisma.booking.count({ where: { createdAt: { gte: startOfMonth }, status: { not: 'CANCELLED' } } }),
-      prisma.allocation.findMany({ where: { status: 'ACTIVE' }, include: { asset: { select: { tag: true, name: true } }, user: { select: { name: true } } } }),
+      prisma.allocation.findMany({ where: { status: { in: ['ACTIVE', 'OVERDUE'] } }, include: { asset: { select: { tag: true, name: true } }, user: { select: { name: true } } } }),
     ]);
 
     // Utilization by dept
@@ -186,12 +186,80 @@ router.get('/summary', auth, async (req, res) => {
   }
 });
 
+// GET /api/reports/csv/:report — CSV download for any report dataset
+router.get('/csv/:report', auth, rbac(['ADMIN', 'ASSET_MANAGER', 'DEPT_HEAD']), async (req, res) => {
+  try {
+    const esc = (v) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const toCsv = (rows, headers) =>
+      [headers.join(','), ...rows.map(r => headers.map(h => esc(r[h])).join(','))].join('\n');
+
+    let csv;
+    switch (req.params.report) {
+      case 'utilization': {
+        const depts = await prisma.department.findMany({ include: { assets: { select: { status: true } } } });
+        csv = toCsv(depts.map(d => ({
+          department: d.name,
+          total: d.assets.length,
+          available: d.assets.filter(a => a.status === 'AVAILABLE').length,
+          allocated: d.assets.filter(a => a.status === 'ALLOCATED').length,
+          maintenance: d.assets.filter(a => a.status === 'UNDER_MAINTENANCE').length,
+        })), ['department', 'total', 'available', 'allocated', 'maintenance']);
+        break;
+      }
+      case 'most-used': {
+        const assets = await prisma.asset.findMany({
+          include: { bookings: { where: { status: { not: 'CANCELLED' } } }, allocations: true, category: true },
+        });
+        csv = toCsv(assets.map(a => ({
+          tag: a.tag, name: a.name, category: a.category?.name, status: a.status,
+          bookings: a.bookings.length, allocations: a.allocations.length,
+          usageScore: a.bookings.length + a.allocations.length,
+        })).sort((a, b) => b.usageScore - a.usageScore),
+        ['tag', 'name', 'category', 'status', 'bookings', 'allocations', 'usageScore']);
+        break;
+      }
+      case 'retirement-due': {
+        const fiveYearsAgo = new Date(); fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+        const assets = await prisma.asset.findMany({
+          where: { OR: [{ acquisitionDate: { lt: fiveYearsAgo } }, { condition: { in: ['Poor', 'Critical'] } }] },
+          include: { category: true, department: true },
+        });
+        csv = toCsv(assets.map(a => ({
+          tag: a.tag, name: a.name, category: a.category?.name, department: a.department?.name,
+          condition: a.condition, acquired: a.acquisitionDate?.toISOString().slice(0, 10), status: a.status,
+        })), ['tag', 'name', 'category', 'department', 'condition', 'acquired', 'status']);
+        break;
+      }
+      case 'maintenance-freq': {
+        const requests = await prisma.maintenanceRequest.findMany({
+          include: { asset: { include: { category: true } }, raisedBy: { select: { name: true } } },
+          orderBy: { createdAt: 'asc' },
+        });
+        csv = toCsv(requests.map(r => ({
+          date: r.createdAt.toISOString().slice(0, 10), asset: r.asset.tag, category: r.asset.category?.name,
+          issue: r.issue, priority: r.priority, status: r.status, raisedBy: r.raisedBy?.name,
+        })), ['date', 'asset', 'category', 'issue', 'priority', 'status', 'raisedBy']);
+        break;
+      }
+      default:
+        return res.status(400).json({ error: 'Unknown report. Use: utilization | most-used | retirement-due | maintenance-freq' });
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="assetflow-${req.params.report}-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
 // GET /api/reports/export
 router.get('/export', auth, rbac(['ADMIN', 'ASSET_MANAGER', 'DEPT_HEAD']), async (req, res) => {
   try {
     const [assets, allocations, maintenance] = await Promise.all([
       prisma.asset.findMany({ include: { category: true, department: true } }),
-      prisma.allocation.findMany({ include: { asset: true, user: { select: { name: true } } }, where: { status: 'ACTIVE' } }),
+      prisma.allocation.findMany({ include: { asset: true, user: { select: { name: true } }, department: { select: { name: true } } }, where: { status: { in: ['ACTIVE', 'OVERDUE'] } } }),
       prisma.maintenanceRequest.findMany({ include: { asset: true }, where: { status: { not: 'RESOLVED' } } }),
     ]);
 
@@ -205,7 +273,7 @@ router.get('/export', auth, rbac(['ADMIN', 'ASSET_MANAGER', 'DEPT_HEAD']), async
     </table>
     <h2>Active Allocations (${allocations.length})</h2>
     <table><tr><th>Asset</th><th>Held By</th><th>Expected Return</th></tr>
-    ${allocations.map(a => `<tr><td>${a.asset.tag}</td><td>${a.user.name}</td><td>${a.expectedReturnDate ? new Date(a.expectedReturnDate).toLocaleDateString() : '-'}</td></tr>`).join('')}
+    ${allocations.map(a => `<tr><td>${a.asset.tag}</td><td>${a.user?.name || `${a.department?.name || 'Unknown'} (dept)`}</td><td>${a.expectedReturnDate ? new Date(a.expectedReturnDate).toLocaleDateString() : '-'}</td></tr>`).join('')}
     </table>
     <h2>Open Maintenance (${maintenance.length})</h2>
     <table><tr><th>Asset</th><th>Issue</th><th>Priority</th><th>Status</th></tr>

@@ -172,8 +172,49 @@ function RegisterModal({ categories, departments, onClose, onSaved, initialData,
 
 // ── Asset Detail Panel ─────────────────────────────────────────────────────────
 
+// Merge allocations, maintenance, and audit results into one chronological story
+function buildTimeline(asset) {
+  const events = [];
+  for (const a of asset.allocations || []) {
+    events.push({ at: a.createdAt, label: `Allocated to ${a.user?.name || a.department?.name || '—'}`, tone: 'text-blue-400' });
+    if (a.returnedAt) events.push({ at: a.returnedAt, label: `Returned${a.conditionNotes ? ` — ${a.conditionNotes}` : ''}`, tone: 'text-emerald-400' });
+  }
+  for (const m of asset.maintenanceRequests || []) {
+    events.push({ at: m.createdAt, label: `Maintenance raised (${m.priority}): ${m.issue}`, tone: 'text-amber-400' });
+    if (m.resolvedAt) events.push({ at: m.resolvedAt, label: 'Maintenance resolved', tone: 'text-emerald-400' });
+  }
+  for (const i of asset.auditItems || []) {
+    if (i.result) events.push({ at: i.updatedAt, label: `Audit "${i.auditCycle?.name}": ${i.result}`, tone: i.result === 'VERIFIED' ? 'text-emerald-400' : 'text-red-400' });
+  }
+  events.push({ at: asset.createdAt, label: 'Asset registered', tone: 'text-violet-400' });
+  return events.sort((a, b) => new Date(b.at) - new Date(a.at));
+}
+
 function AssetPanel({ asset, onClose, onEdit }) {
+  const [qr, setQr] = useState(null);
+
+  useEffect(() => {
+    if (!asset) return;
+    api.get(`/assets/${asset.id}/qr`).then(({ data }) => setQr(data)).catch(() => {});
+  }, [asset]);
+
   if (!asset) return null;
+  const timeline = buildTimeline(asset);
+
+  const printLabel = () => {
+    if (!qr) return;
+    const w = window.open('', '_blank', 'width=380,height=460');
+    w.document.write(`
+      <html><head><title>${asset.tag} label</title></head>
+      <body style="font-family:Arial;display:flex;flex-direction:column;align-items:center;justify-content:center;height:90vh;margin:0">
+        <img src="${qr.qrDataUrl}" width="220" height="220" />
+        <p style="font-family:monospace;font-size:20px;font-weight:bold;margin:12px 0 2px">${asset.tag}</p>
+        <p style="font-size:13px;color:#555;margin:0">${asset.name}</p>
+        <p style="font-size:10px;color:#999;margin-top:8px">Scan to view & audit — AssetFlow</p>
+        <script>window.onload = () => window.print()</script>
+      </body></html>`);
+    w.document.close();
+  };
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
@@ -220,49 +261,38 @@ function AssetPanel({ asset, onClose, onEdit }) {
             ))}
           </div>
 
-          {/* Allocation history */}
-          {asset.allocations?.length > 0 && (
+          {/* Asset biography — everything that ever happened, newest first */}
+          {timeline.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Allocation History</p>
-              <div className="space-y-2">
-                {asset.allocations.slice(0, 5).map(a => (
-                  <div key={a.id} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-                    <span className="text-foreground">{a.user?.name}</span>
-                    <span className={cn('badge', a.status === 'ACTIVE' ? 'badge-allocated' : 'badge-retired')}>
-                      {a.status}
-                    </span>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Timeline</p>
+              <div className="space-y-0">
+                {timeline.slice(0, 12).map((e, i) => (
+                  <div key={i} className="flex items-start gap-3 py-2 border-b border-border/50 last:border-0">
+                    <div className={cn('w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-current', e.tone)} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-foreground leading-snug">{e.label}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(e.at)}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Maintenance history */}
-          {asset.maintenanceRequests?.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Maintenance History</p>
-              <div className="space-y-2">
-                {asset.maintenanceRequests.slice(0, 3).map(m => (
-                  <div key={m.id} className="flex items-start gap-2 text-xs py-1.5 border-b border-border/50 last:border-0">
-                    <span className={cn('badge shrink-0 mt-0.5', `badge-${m.priority.toLowerCase()}`)}>{m.priority}</span>
-                    <p className="text-muted-foreground">{m.issue}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* QR Code */}
+          {/* QR label — generated locally by the backend, deep-links to /scan/:tag */}
           <div className="border-t border-border/50 pt-4 flex flex-col items-center justify-center gap-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Asset QR Code</p>
-            <div className="bg-white p-2 rounded-lg border border-border">
-              <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${asset.tag}`} 
-                alt="QR Code" 
-                className="w-24 h-24" 
-              />
-            </div>
-            <p className="text-[10px] text-muted-foreground font-mono">{asset.tag}</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Asset QR Label</p>
+            {qr ? (
+              <>
+                <div className="bg-white p-2 rounded-lg border border-border">
+                  <img src={qr.qrDataUrl} alt="QR Code" className="w-28 h-28" />
+                </div>
+                <p className="text-[10px] text-muted-foreground font-mono">{asset.tag} · scan to view & audit</p>
+                <button onClick={printLabel} className="btn-secondary btn-sm text-xs">Print label</button>
+              </>
+            ) : (
+              <div className="w-28 h-28 bg-secondary rounded-lg animate-shimmer" />
+            )}
           </div>
         </div>
       </div>

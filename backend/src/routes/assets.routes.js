@@ -1,8 +1,11 @@
 const router = require('express').Router();
 const { PrismaClient } = require('@prisma/client');
+const QRCode = require('qrcode');
 const auth = require('../middleware/auth');
 const rbac = require('../middleware/rbac');
 const prisma = new PrismaClient();
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // Helper: generate next asset tag
 async function generateTag() {
@@ -64,6 +67,30 @@ router.post('/', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
+// GET /api/assets/by-tag/:tag — used by the QR scan page; resolves the asset
+// and, if one exists, its unmarked item in an open audit cycle
+router.get('/by-tag/:tag', auth, async (req, res) => {
+  try {
+    const asset = await prisma.asset.findUnique({
+      where: { tag: req.params.tag },
+      include: {
+        category: true,
+        department: true,
+        allocations: {
+          where: { status: { in: ['ACTIVE', 'OVERDUE'] } },
+          include: { user: { select: { name: true } }, department: { select: { name: true } } },
+        },
+        auditItems: {
+          where: { auditCycle: { status: 'OPEN' } },
+          include: { auditCycle: { select: { id: true, name: true } } },
+        },
+      },
+    });
+    if (!asset) return res.status(404).json({ error: 'No asset with that tag' });
+    res.json(asset);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
 // GET /api/assets/:id
 router.get('/:id', auth, async (req, res) => {
   try {
@@ -72,9 +99,10 @@ router.get('/:id', auth, async (req, res) => {
       include: {
         category: true,
         department: true,
-        allocations: { include: { user: { select: { name: true, email: true } } }, orderBy: { createdAt: 'desc' } },
+        allocations: { include: { user: { select: { name: true, email: true } }, department: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
         maintenanceRequests: { include: { raisedBy: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
         bookings: { include: { user: { select: { name: true } } }, orderBy: { startTime: 'desc' } },
+        auditItems: { include: { auditCycle: { select: { name: true, status: true } } }, orderBy: { updatedAt: 'desc' } },
       },
     });
     if (!asset) return res.status(404).json({ error: 'Asset not found' });
@@ -82,15 +110,18 @@ router.get('/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// GET /api/assets/:id/qr
+// GET /api/assets/:id/qr — QR generated locally (no external service),
+// encoding a deep link to the scan-to-audit page for this asset
 router.get('/:id/qr', auth, async (req, res) => {
   try {
     const asset = await prisma.asset.findUnique({
       where: { id: req.params.id },
-      select: { tag: true },
+      select: { tag: true, name: true },
     });
     if (!asset) return res.status(404).json({ error: 'Asset not found' });
-    res.json({ tag: asset.tag, qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${asset.tag}` });
+    const scanUrl = `${FRONTEND_URL}/scan/${asset.tag}`;
+    const qrDataUrl = await QRCode.toDataURL(scanUrl, { width: 240, margin: 1 });
+    res.json({ tag: asset.tag, name: asset.name, scanUrl, qrDataUrl });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 

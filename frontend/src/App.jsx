@@ -16,9 +16,12 @@ import Maintenance from './pages/Maintenance';
 import Audit from './pages/Audit';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
+import Scan from './pages/Scan';
+import { useLiveEvents } from './hooks/useLiveEvents';
 
 // Layout wrapper for authenticated screens
 function AppLayout({ title }) {
+  useLiveEvents();
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar />
@@ -73,6 +76,9 @@ export default function App() {
         <Route element={<ProtectedRoute><AppLayout title="Notifications" /></ProtectedRoute>}>
           <Route path="/notifications" element={<Notifications />} />
         </Route>
+
+        {/* QR scan-to-audit — minimal chrome for phone screens */}
+        <Route path="/scan/:tag" element={<ProtectedRoute><Scan /></ProtectedRoute>} />
 
         {/* Protected — Admin + Asset Manager only */}
         <Route element={<ProtectedRoute allowedRoles={['ADMIN']}><AppLayout title="Organization Setup" /></ProtectedRoute>}>

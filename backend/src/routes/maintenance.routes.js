@@ -2,11 +2,8 @@ const router = require('express').Router();
 const { PrismaClient } = require('@prisma/client');
 const auth = require('../middleware/auth');
 const rbac = require('../middleware/rbac');
+const notify = require('../lib/notify');
 const prisma = new PrismaClient();
-
-const notify = async (userId, type, message) => {
-  await prisma.notification.create({ data: { userId, type, message } });
-};
 
 // GET /api/maintenance
 router.get('/', auth, async (req, res) => {
@@ -49,6 +46,7 @@ router.put('/:id/approve', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, r
   try {
     const req2 = await prisma.maintenanceRequest.findUnique({ where: { id: req.params.id }, include: { asset: true, raisedBy: true } });
     if (!req2) return res.status(404).json({ error: 'Not found' });
+    if (req2.status !== 'PENDING') return res.status(409).json({ error: `Request is already ${req2.status.toLowerCase().replace(/_/g, ' ')}` });
 
     await prisma.$transaction([
       prisma.maintenanceRequest.update({ where: { id: req.params.id }, data: { status: 'APPROVED' } }),
@@ -66,6 +64,7 @@ router.put('/:id/reject', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, re
   try {
     const req2 = await prisma.maintenanceRequest.findUnique({ where: { id: req.params.id }, include: { raisedBy: true, asset: true } });
     if (!req2) return res.status(404).json({ error: 'Maintenance request not found' });
+    if (req2.status !== 'PENDING') return res.status(409).json({ error: `Request is already ${req2.status.toLowerCase().replace(/_/g, ' ')}` });
     await prisma.maintenanceRequest.update({ where: { id: req.params.id }, data: { status: 'REJECTED', notes: req.body.notes } });
     await notify(req2.raisedById, 'MAINTENANCE_REJECTED', `Your maintenance request for ${req2.asset.name} was rejected`);
     res.json({ message: 'Rejected' });
@@ -76,6 +75,11 @@ router.put('/:id/reject', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, re
 router.put('/:id/assign', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, res) => {
   try {
     const { technicianId } = req.body;
+    const existing = await prisma.maintenanceRequest.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Maintenance request not found' });
+    if (!['APPROVED', 'TECHNICIAN_ASSIGNED'].includes(existing.status)) {
+      return res.status(409).json({ error: 'Technician can only be assigned to an approved request' });
+    }
     const updated = await prisma.maintenanceRequest.update({
       where: { id: req.params.id },
       data: { status: 'TECHNICIAN_ASSIGNED', technicianId },
@@ -87,6 +91,11 @@ router.put('/:id/assign', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, re
 // PUT /api/maintenance/:id/progress
 router.put('/:id/progress', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, res) => {
   try {
+    const existing = await prisma.maintenanceRequest.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Maintenance request not found' });
+    if (!['APPROVED', 'TECHNICIAN_ASSIGNED'].includes(existing.status)) {
+      return res.status(409).json({ error: 'Only an approved or assigned request can move to in progress' });
+    }
     const updated = await prisma.maintenanceRequest.update({ where: { id: req.params.id }, data: { status: 'IN_PROGRESS' } });
     res.json(updated);
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
@@ -96,6 +105,10 @@ router.put('/:id/progress', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, 
 router.put('/:id/resolve', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, res) => {
   try {
     const req2 = await prisma.maintenanceRequest.findUnique({ where: { id: req.params.id }, include: { asset: true, raisedBy: true } });
+    if (!req2) return res.status(404).json({ error: 'Maintenance request not found' });
+    if (!['APPROVED', 'TECHNICIAN_ASSIGNED', 'IN_PROGRESS'].includes(req2.status)) {
+      return res.status(409).json({ error: `Cannot resolve a ${req2.status.toLowerCase().replace(/_/g, ' ')} request` });
+    }
 
     await prisma.$transaction([
       prisma.maintenanceRequest.update({ where: { id: req.params.id }, data: { status: 'RESOLVED', resolvedAt: new Date(), notes: req.body.notes } }),
