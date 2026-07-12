@@ -65,6 +65,7 @@ router.put('/:id/approve', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, r
 router.put('/:id/reject', auth, rbac(['ADMIN', 'ASSET_MANAGER']), async (req, res) => {
   try {
     const req2 = await prisma.maintenanceRequest.findUnique({ where: { id: req.params.id }, include: { raisedBy: true, asset: true } });
+    if (!req2) return res.status(404).json({ error: 'Maintenance request not found' });
     await prisma.maintenanceRequest.update({ where: { id: req.params.id }, data: { status: 'REJECTED', notes: req.body.notes } });
     await notify(req2.raisedById, 'MAINTENANCE_REJECTED', `Your maintenance request for ${req2.asset.name} was rejected`);
     res.json({ message: 'Rejected' });

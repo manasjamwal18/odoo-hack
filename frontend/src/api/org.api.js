@@ -1,0 +1,12 @@
+import api from './axios';
+export const getDepartments = () => api.get('/org/departments');
+export const createDepartment = (data) => api.post('/org/departments', data);
+export const updateDepartment = (id, data) => api.put(`/org/departments/${id}`, data);
+export const deleteDepartment = (id) => api.delete(`/org/departments/${id}`);
+export const getCategories = () => api.get('/org/categories');
+export const createCategory = (data) => api.post('/org/categories', data);
+export const updateCategory = (id, data) => api.put(`/org/categories/${id}`, data);
+export const getEmployees = () => api.get('/org/employees');
+export const promoteEmployee = (id, role) => api.put(`/org/employees/${id}/promote`, { role });
+export const updateEmployeeStatus = (id, status) => api.put(`/org/employees/${id}/status`, { status });
+export const updateEmployee = (id, data) => api.put(`/org/employees/${id}`, data);

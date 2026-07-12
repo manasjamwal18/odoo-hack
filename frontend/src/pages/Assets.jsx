@@ -1,17 +1,25 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Plus, X, Loader2, Package, ChevronRight } from 'lucide-react';
+import { Search, Plus, X, Loader2, Package, ChevronRight, Pencil } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { cn, formatDate, getStatusBadgeClass, formatStatus } from '../lib/utils';
 import { useAuthStore } from '../store/useAuthStore';
 
-// ── Register Asset Modal ───────────────────────────────────────────────────────
+// ── Register / Edit Asset Modal ──────────────────────────────────────────
 
-function RegisterModal({ categories, departments, onClose, onSaved }) {
+function RegisterModal({ categories, departments, onClose, onSaved, initialData, assetId }) {
+  const isEdit = !!assetId;
   const [form, setForm] = useState({
-    name: '', categoryId: '', serialNumber: '', acquisitionDate: '',
-    acquisitionCost: '', condition: 'Good', location: '', departmentId: '', isBookable: false,
-    photoUrl: '',
+    name: initialData?.name || '',
+    categoryId: initialData?.categoryId || '',
+    serialNumber: initialData?.serialNumber || '',
+    acquisitionDate: initialData?.acquisitionDate ? initialData.acquisitionDate.split('T')[0] : '',
+    acquisitionCost: initialData?.acquisitionCost || '',
+    condition: initialData?.condition || 'Good',
+    location: initialData?.location || '',
+    departmentId: initialData?.departmentId || '',
+    isBookable: initialData?.isBookable || false,
+    photoUrl: initialData?.photoUrl || '',
   });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
@@ -46,12 +54,17 @@ function RegisterModal({ categories, departments, onClose, onSaved }) {
     if (!validate()) return;
     setSaving(true);
     try {
-      await api.post('/assets', form);
-      toast.success('Asset registered');
+      if (isEdit) {
+        await api.put(`/assets/${assetId}`, form);
+        toast.success('Asset updated');
+      } else {
+        await api.post('/assets', form);
+        toast.success('Asset registered');
+      }
       onSaved();
       onClose();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to register asset');
+      toast.error(err.response?.data?.error || (isEdit ? 'Failed to update asset' : 'Failed to register asset'));
     } finally { setSaving(false); }
   };
 
@@ -63,7 +76,7 @@ function RegisterModal({ categories, departments, onClose, onSaved }) {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h3 className="font-semibold text-foreground">Register New Asset</h3>
+          <h3 className="font-semibold text-foreground">{isEdit ? `Edit ${initialData?.tag}` : 'Register New Asset'}</h3>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer">
             <X size={18} />
           </button>
@@ -148,7 +161,7 @@ function RegisterModal({ categories, departments, onClose, onSaved }) {
           <div className="flex gap-3 pt-2 border-t border-border">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">
-              {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : 'Register Asset'}
+              {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : (isEdit ? 'Save Changes' : 'Register Asset')}
             </button>
           </div>
         </form>
@@ -159,7 +172,7 @@ function RegisterModal({ categories, departments, onClose, onSaved }) {
 
 // ── Asset Detail Panel ─────────────────────────────────────────────────────────
 
-function AssetPanel({ asset, onClose }) {
+function AssetPanel({ asset, onClose, onEdit }) {
   if (!asset) return null;
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -173,7 +186,14 @@ function AssetPanel({ asset, onClose }) {
             <h3 className="font-semibold text-foreground">{asset.tag}</h3>
             <p className="text-xs text-muted-foreground">{asset.name}</p>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer"><X size={18} /></button>
+          <div className="flex items-center gap-2">
+            {onEdit && (
+              <button onClick={() => onEdit(asset)} className="btn-secondary btn-sm" title="Edit asset">
+                <Pencil size={13} /> Edit
+              </button>
+            )}
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer"><X size={18} /></button>
+          </div>
         </div>
         <div className="p-6 space-y-4 text-sm">
           {asset.photoUrl && (
@@ -262,6 +282,7 @@ export default function Assets() {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ categoryId: '', status: '' });
   const [showRegister, setShowRegister] = useState(false);
+  const [editAsset, setEditAsset] = useState(null); // { asset } when editing
   const [selectedAsset, setSelectedAsset] = useState(null);
   const { user } = useAuthStore();
   const canRegister = ['ADMIN', 'ASSET_MANAGER'].includes(user?.role);
@@ -435,8 +456,22 @@ export default function Assets() {
           onSaved={fetchAssets}
         />
       )}
+      {editAsset && (
+        <RegisterModal
+          categories={categories}
+          departments={departments}
+          initialData={editAsset}
+          assetId={editAsset.id}
+          onClose={() => setEditAsset(null)}
+          onSaved={() => { fetchAssets(); setSelectedAsset(null); }}
+        />
+      )}
       {selectedAsset && (
-        <AssetPanel asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
+        <AssetPanel
+          asset={selectedAsset}
+          onClose={() => setSelectedAsset(null)}
+          onEdit={canRegister ? (a) => { setEditAsset(a); setSelectedAsset(null); } : undefined}
+        />
       )}
     </div>
   );

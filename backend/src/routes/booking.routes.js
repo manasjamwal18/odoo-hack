@@ -36,6 +36,11 @@ router.post('/', auth, async (req, res) => {
 
     if (start >= end) return res.status(400).json({ error: 'Start time must be before end time' });
 
+    // Enforce isBookable server-side
+    const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    if (!asset) return res.status(404).json({ error: 'Asset not found' });
+    if (!asset.isBookable) return res.status(400).json({ error: 'This asset is not bookable' });
+
     // Overlap validation: startA < endB && endA > startB
     const overlap = await prisma.booking.findFirst({
       where: {

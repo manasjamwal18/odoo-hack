@@ -19,6 +19,16 @@ const TYPE_ICONS = {
   INFO:     { icon: Bell,          cls: 'text-blue-400 bg-blue-500/10' },
 };
 
+// Maps backend notification type strings → tab category keys
+const typeToCategory = (type) => {
+  if (!type) return 'INFO';
+  const t = type.toUpperCase();
+  if (t.includes('REJECTED') || t.includes('OVERDUE') || t.includes('LOST') || t.includes('DISCREPANCY')) return 'ALERT';
+  if (t.includes('APPROVED') || t.includes('ASSIGNED') || t.includes('RESOLVED') || t.includes('TRANSFER') || t.includes('PROMOTED')) return 'APPROVAL';
+  if (t.includes('BOOKING') || t.includes('CANCELLED')) return 'BOOKING';
+  return 'INFO';
+};
+
 // Relative time formatter
 function relativeTime(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -34,7 +44,8 @@ function relativeTime(dateStr) {
 // ── Single Notification Row ───────────────────────────────────────────────────
 
 function NotifRow({ notif, onMarkRead }) {
-  const cfg = TYPE_ICONS[notif.type] || TYPE_ICONS.INFO;
+  const category = typeToCategory(notif.type);
+  const cfg = TYPE_ICONS[category] || TYPE_ICONS.INFO;
   const Icon = cfg.icon;
 
   return (
@@ -115,7 +126,7 @@ export default function Notifications() {
     finally { setMarkingAll(false); }
   };
 
-  const filtered = tab === 'all' ? notifs : notifs.filter(n => n.type === tab);
+  const filtered = tab === 'all' ? notifs : notifs.filter(n => typeToCategory(n.type) === tab);
   const unreadCount = notifs.filter(n => !n.isRead).length;
 
   return (
@@ -145,7 +156,7 @@ export default function Notifications() {
         {TABS.map(t => {
           const count = t.key === 'all'
             ? notifs.filter(n => !n.isRead).length
-            : notifs.filter(n => n.type === t.key && !n.isRead).length;
+            : notifs.filter(n => typeToCategory(n.type) === t.key && !n.isRead).length;
           return (
             <button
               key={t.key}
