@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Bell, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import api from '../../api/axios';
-import ProfileModal from './ProfileModal';
 
 const ROUTE_LABELS = {
   '/dashboard':     'Dashboard',
@@ -22,7 +21,6 @@ export default function TopBar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [unread, setUnread] = useState(0);
-  const [showProfile, setShowProfile] = useState(false);
 
   // Poll unread count
   useEffect(() => {
@@ -61,9 +59,8 @@ export default function TopBar() {
         </button>
 
         {/* Avatar */}
-        <button
-          onClick={() => setShowProfile(true)}
-          className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary cursor-pointer hover:bg-primary/30 transition-colors overflow-hidden"
+        <div
+          className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary select-none overflow-hidden"
           aria-label={`Signed in as ${user?.name}`}
         >
           {user?.photoUrl ? (
@@ -71,9 +68,8 @@ export default function TopBar() {
           ) : (
             user?.name?.charAt(0).toUpperCase()
           )}
-        </button>
+        </div>
       </div>
-      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
     </header>
   );
 }
