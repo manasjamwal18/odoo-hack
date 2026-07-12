@@ -100,7 +100,7 @@ export default function Dashboard() {
         <div>
           <h2 className="page-title">Today's Overview</h2>
           <p className="page-subtitle">
-            {stats ? `${stats.auditors ?? ''} Auditors: A. Rao, G. Iyer` : 'Loading dashboard...'}
+            {loading ? 'Loading dashboard...' : `Live status across ${(stats?.available ?? 0) + (stats?.allocated ?? 0)} tracked assets`}
           </p>
         </div>
       </div>

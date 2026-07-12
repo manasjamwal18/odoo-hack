@@ -1,7 +1,6 @@
 const router = require('express').Router();
 const { PrismaClient } = require('@prisma/client');
 const auth = require('../middleware/auth');
-const rbac = require('../middleware/rbac');
 const prisma = new PrismaClient();
 
 // ── Dashboard Stats ──────────────────────────────────────────────────────────
